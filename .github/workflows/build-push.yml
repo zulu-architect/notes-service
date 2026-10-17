@@ -75,6 +75,35 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Runs even when the image already existed: the bump is idempotent (no diff -> no commit)
+      - name: Check out the GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: zulu-architect/notes-service-gitops
+          # Fine-grained PAT: Contents read/write on this one repo only. GITHUB_TOKEN cannot write cross-repo.
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Bump image.tag in the GitOps repo
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          cd gitops
+          FILE=chart/notes-service/values.yaml
+          # Only the two-space-indented `tag:` under `image:` (postgres has none)
+          sed -i -E "s|^(  tag: ).*|\1\"${TAG}\"|" "$FILE"
+          grep -qE "^  tag: \"${TAG}\"$" "$FILE" || { echo "tag line not updated"; exit 1; }
+          if git diff --quiet; then
+            echo "values.yaml already at ${TAG}; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "ci: deploy notes-service ${TAG}" \
+            -m "Source: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
       - name: Summary
         run: |
           echo "### Image" >> "$GITHUB_STEP_SUMMARY"
