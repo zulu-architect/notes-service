@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RefreshScope
 public class GreetingController {
 
-    @Value("${notes.greeting:greeting not configured}")
+    @Value("${notes.greeting:greeting not configured (v2, deployed via GitOps)}")
     private String greeting;
 
     @GetMapping("/greeting")
